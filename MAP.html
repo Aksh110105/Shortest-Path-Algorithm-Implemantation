@@ -1,0 +1,141 @@
+<html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Optimization</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        body { display: flex; margin: 0; font-family: Arial, sans-serif; }
+        #sidebar { width: 300px; padding: 20px; background-color: #f4f4f4; border-right: 1px solid #ddd; }
+        #sidebar h2 { margin-top: 0; }
+        #map { flex: 1; height: 100vh; }
+        .route-info { margin-top: 20px; padding: 10px; background-color: #e8f5e9; border: 1px solid #ccc; border-radius: 4px; }
+        select, button { width: 100%; padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 16px; }
+        button { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+        #hoverInfo { font-size: 14px; color: #555; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2>Route Optimization</h2>
+        <label for="startSelect">Start Location:</label>
+        <select id="startSelect">
+            <option value="Dehradun">Dehradun</option>
+            <option value="Delhi">Delhi</option>
+            <option value="Chakrata">Chakrata</option>
+            <option value="Mumbai">Mumbai</option>
+            <option value="Bangalore">Bangalore</option>
+            <option value="Chennai">Chennai</option>
+            <option value="Jammu">Jammu</option>
+            <option value="Lucknow">Lucknow</option>
+        </select>
+
+        <label for="endSelect">End Location:</label>
+        <select id="endSelect">
+            <option value="Dehradun">Dehradun</option>
+            <option value="Delhi">Delhi</option>
+            <option value="Chakrata">Chakrata</option>
+            <option value="Mumbai">Mumbai</option>
+            <option value="Bangalore">Bangalore</option>
+            <option value="Chennai">Chennai</option>
+            <option value="Jammu">Jammu</option>
+            <option value="Lucknow">Lucknow</option>
+        </select>
+
+        <button onclick="findRoute()">Find Route</button>
+
+        <div class="route-info" id="routeInfo">
+            <h3>Route Details</h3>
+            <p><strong>Distance:</strong> <span id="distance">-</span> km</p>
+            <p><strong>Travel Time:</strong> <span id="travelTime">-</span> hours</p>
+        </div>
+
+        <div id="hoverInfo">Hover over a location in the dropdown to see estimated distance and time</div>
+    </div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        const map = L.map('map').setView([20.5937, 78.9629], 5);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        const locations = {
+            'Dehradun': [30.3165, 78.0322],
+            'Delhi': [28.6139, 77.2090],
+            'Chakrata': [30.7494, 77.9154],
+            'Mumbai': [19.0760, 72.8777],
+            'Bangalore': [12.9716, 77.5946],
+            'Chennai': [13.0827, 80.2707],
+            'Jammu': [32.7266, 74.8570],
+            'Lucknow': [26.8467, 80.9462]
+        };
+
+        let startMarker = L.marker(locations['Dehradun']).addTo(map).bindPopup("Start Location");
+        let endMarker = L.marker(locations['Delhi']).addTo(map).bindPopup("End Location");
+        let currentRoute;
+
+        function findRoute() {
+            const startLocation = document.getElementById('startSelect').value;
+            const endLocation = document.getElementById('endSelect').value;
+
+            // Update marker positions based on the selected locations
+            const startCoords = locations[startLocation];
+            const endCoords = locations[endLocation];
+
+            startMarker.setLatLng(startCoords).update();
+            endMarker.setLatLng(endCoords).update();
+
+            if (currentRoute) {
+                map.removeLayer(currentRoute);
+            }
+
+            $.get(`http://127.0.0.1:5000/route?start=${startLocation}&end=${endLocation}`, function(data) {
+                if (data.path) {
+                    document.getElementById('distance').innerText = data.distance;
+                    document.getElementById('travelTime').innerText = data.travel_time.toFixed(2);
+                    const coordinates = data.path.map(location => locations[location]);
+                    currentRoute = L.polyline(coordinates, { color: 'blue' }).addTo(map);
+                    map.fitBounds(currentRoute.getBounds());
+                } else {
+                    alert(data.error || "No valid route found.");
+                }
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                console.error("Error fetching route: ", textStatus, errorThrown);
+                alert("Error fetching route. Please check console for details.");
+            });
+        }
+
+        function calculateRouteInfo(start, end, callback) {
+            $.get(`http://127.0.0.1:5000/route?start=${start}&end=${end}`, function(data) {
+                if (data.distance && data.travel_time) {
+                    callback(`Distance: ${data.distance} km, Travel Time: ${data.travel_time.toFixed(2)} hours`);
+                } else {
+                    callback("No route available");
+                }
+            }).fail(() => callback("Unable to fetch data"));
+        }
+
+        document.getElementById('startSelect').addEventListener('mouseover', event => {
+            const startLocation = document.getElementById('startSelect').value;
+            const endLocation = document.getElementById('endSelect').value;
+            calculateRouteInfo(startLocation, endLocation, info => {
+                document.getElementById('hoverInfo').innerText = info;
+            });
+        });
+
+        document.getElementById('endSelect').addEventListener('mouseover', event => {
+            const startLocation = document.getElementById('startSelect').value;
+            const endLocation = document.getElementById('endSelect').value;
+            calculateRouteInfo(startLocation, endLocation, info => {
+                document.getElementById('hoverInfo').innerText = info;
+            });
+        });
+    </script>
+</body>
+</html>
